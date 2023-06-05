@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000;
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -19,11 +20,32 @@ const client = new MongoClient(uri, {
     }
 });
 
+function verifyJWt(req, res, next) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+
+    }
+    const token = authHeader.split(' ')[1]
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
+        if (err) {
+            return res.status(403).send({ message: 'Forbidden access' })
+        }
+        req.decoded = decoded;
+        next()
+    })
+}
+
+
 async function run() {
     try {
         const serviceCollection = client.db('foodRun').collection('services')
         const reviewCollection = client.db('foodRun').collection('reviews')
 
+        app.post('/jwt', (req, res) => {
+            const user = req.body
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '5' })
+            res.send({ token })
+        })
 
         app.get('/threeServices', async (req, res) => {
             const query = {}
@@ -69,7 +91,7 @@ async function run() {
 
         })
 
-        app.put('/update/:id', async (req, res) => {
+        app.put('/update/:id', verifyJWt, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const review = req.body
@@ -82,20 +104,20 @@ async function run() {
             res.send(result)
         })
 
-        app.delete('/review/:id', async (req, res) => {
+        app.delete('/review/:id', verifyJWt, async (req, res) => {
             const id = req.params.id
             const query = { _id: new ObjectId(id) }
             const result = await reviewCollection.deleteOne(query)
             res.send(result)
         })
 
-        app.post('/addService', async (req, res) => {
+        app.post('/addService', verifyJWt, async (req, res) => {
             const service = req.body;
             const result = await serviceCollection.insertOne(service)
             res.send(result)
         })
 
-        app.post('/review', async (req, res) => {
+        app.post('/review', verifyJWt, async (req, res) => {
             const review = req.body;
             const result = await reviewCollection.insertOne(review)
             res.send(result)
